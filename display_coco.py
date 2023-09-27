@@ -5,7 +5,7 @@ import random
 
 import cv2
 import numpy as np
-from pycocotools import coco
+from pycocotools.coco import COCO
 import pycocotools.mask as cocomask
 
 
@@ -219,10 +219,10 @@ def draw_mask(im, mask, alpha=0.5, color=None):
 def parse_args():
     parser = argparse.ArgumentParser(description="Display random images from coco dataset",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--datadir', default="/data/coco", help='specifying the root path of coco dataset')
-    parser.add_argument('--ann', default="/data/coco/train.json", help='specifying annotation file to use')
+    parser.add_argument('--datadir', default="/mnt/e/workspace/coco", help='specifying the root path of coco dataset')
+    parser.add_argument('--ann', default="/mnt/e/workspace/coco/annotations/instances_train2017.json", help='specifying annotation file to use')
     parser.add_argument('--save', action='store_true', help='If set, it will save the image')
-    parser.add_argument('--random', default="store_true", help='If set, it will get random images')
+    parser.add_argument('--random', action="store_true", help='If set, it will get random images')
 
     args = parser.parse_args()
     return args
@@ -232,7 +232,7 @@ def main():
     print(args)
 
     # initialize coco
-    coco = coco(args.ann)
+    coco = COCO(args.ann)
 
     # plot some coco dataset information
     cats = coco.loadCats(coco.getCatIds())
@@ -250,34 +250,30 @@ def main():
     else:
         image_id = 0
 
-    image_info = coco.loadImgs(image_id)[0]
+    image_info = coco.loadImgs(imageIds[image_id])[0]
 
     imname = image_info['file_name']
     annIds = coco.getAnnIds(image_info['id'])
 
-    im = cv2.imread(imname)
+    im = cv2.imread(os.path.join(args.datadir, "train2017", imname))
     anns = coco.loadAnns(annIds)
-
+    
     ann_cat_names = []
     for ann in anns:
-        ann_cat_names.append(CLASS_MAP[ann['category_id']])
+        cat_name = CLASS_MAP[ann['category_id']]
+        ann_cat_names.append(cat_name)
         # display bounding box
         x, y, w, h = ann['bbox']
         x, y, w, h = int(x), int(y), int(w), int(h)
         b, g, r = random.randint(0,255), random.randint(0,255), random.randint(0,255)
-        cv2.rectangle(im, (x, y), (x+w, y+h), (b,g,r), 2)
+        cv2.putText(im, cat_name, (x,y-5), cv2.FONT_HERSHEY_PLAIN, 
+                   0.6, (0,0,255), 1, cv2.LINE_AA)
+        cv2.rectangle(im, (x, y), (x+w, y+h), (255,0,0), 1)
 
         # display mask
-        mask = ann['segmentation']
-
-        if ("counts" in mask):
-            if type(mask["counts"]) is not list:
-                # rle encoded mask
-                mask_im = cocomask.decode(mask) * 255
-            else:
-                mask_im = coco.annToMask(ann) * 255
-
-            im = draw_mask(im, mask_im)
+        if 'segmentation' in ann:
+            mask_im = coco.annToMask(ann) * 255
+            im = draw_mask(im, mask_im, color=np.array((b, g, r), dtype=np.float32))
 
     if args.save:
         cv2.imwrite('output.jpg', im)
@@ -286,7 +282,8 @@ def main():
     print('The image contains the following annotations')
     print(ann_cat_names)
 
-
+if __name__ == "__main__":
+    main()
 
 
 
